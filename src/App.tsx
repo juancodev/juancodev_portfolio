@@ -1,53 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, AnimatePresence, useScroll } from 'motion/react';
-import { Github, Linkedin, Mail, ExternalLink, Terminal, Code2, Briefcase, Zap } from 'lucide-react';
+import { Github, Linkedin, Mail, ExternalLink, Terminal, Code2, Briefcase, Zap, Languages } from 'lucide-react';
 import { IconType } from 'react-icons';
 import { SiReact, SiJavascript, SiTypescript, SiVite, SiTailwindcss, SiNestjs, SiPostgresql, SiMongodb, SiDocker, SiGit } from 'react-icons/si';
 import StarBackground from './components/StarBackground';
 import MouseGlow from './components/MouseGlow';
 import ContactForm from './components/ContactForm';
+import { Language, translations } from './i18n';
 
-const projects = [
-  {
-    title: "E-Commerce Plataforma",
-    description: "Una solución completa de comercio electrónico con NestJS y React.",
-    tech: ["React", "NestJS", "Tailwind", "PostgreSQL"],
-    link: "#",
-    color: "from-brand-primary to-brand-accent"
-  },
-  {
-    title: "Dashboard Analítico",
-    description: "Panel de control en tiempo real para análisis de datos.",
-    tech: ["TypeScript", "Next.js", "D3.js", "Framer Motion"],
-    link: "#",
-    color: "from-brand-secondary to-brand-primary"
-  },
-];
-
-const skills = [
+const skillsArray = [
   "JavaScript / TypeScript", "React.js / Next.js", "NestJS / Express", 
   "Tailwind CSS", "PostgreSQL / MongoDB", "Git / Docker", "Framer Motion", "Arquitectura Web"
 ];
 
-const testimonials = [
-  {
-    quote: "La atención al detalle en cada componente y la resiliencia de la arquitectura es nivel Dios. El ecosistema fluye maravillosamente.",
-    author: "Carolina Gómez",
-    role: "CTO, StartPath"
-  },
-  {
-    quote: "Juan entiende que el código debe solucionar problemas de negocio reales. Nuestra conversión subió un 40% con el nuevo ecosistema web.",
-    author: "David Ruiz",
-    role: "Product Manager, Elevate"
-  }
-];
-
-const Navbar = ({ activeSection }: { activeSection: string }) => {
+const Navbar = ({ activeSection, language, toggleLanguage }: { activeSection: string, language: Language, toggleLanguage: () => void }) => {
+  const t = translations[language];
   const links = [
-    { id: 'hero', label: 'Inicio' },
-    { id: 'tecnologias', label: 'Skills' },
-    { id: 'proyectos', label: 'Proyectos' },
-    { id: 'testimonios', label: 'Testimonios' }
+    { id: 'hero', label: t.nav.home },
+    { id: 'tecnologias', label: t.nav.skills },
+    { id: 'proyectos', label: t.nav.projects },
+    { id: 'testimonios', label: t.nav.testimonials }
   ];
 
   return (
@@ -89,7 +61,13 @@ const Navbar = ({ activeSection }: { activeSection: string }) => {
       <div className="flex items-center gap-4 md:gap-5 text-text-dim">
         <a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-white transition-colors"><Github className="w-5 h-5"/></a>
         <a href="https://linkedin.com" target="_blank" rel="noreferrer" className="hover:text-white transition-colors"><Linkedin className="w-5 h-5"/></a>
-        <a href="#contact" className="hover:text-white transition-colors hidden sm:block"><Mail className="w-5 h-5"/></a>
+        <div className="flex items-center gap-3 md:gap-4 pl-3 md:pl-4 border-l border-white/10">
+          <a href="#contact" className="hover:text-white transition-colors hidden sm:block"><Mail className="w-5 h-5"/></a>
+          <button onClick={toggleLanguage} className="flex items-center gap-1 hover:text-white transition-colors group">
+            <Languages className="w-5 h-5 group-hover:text-accent-cyan transition-colors" />
+            <span className="text-[10px] font-bold tracking-widest leading-none mt-[2px]">{language === 'es' ? 'EN' : 'ES'}</span>
+          </button>
+        </div>
       </div>
     </header>
   );
@@ -250,7 +228,11 @@ const ParallaxSection = ({ children, id, className, containerRef, offset = 100 }
 export default function App() {
   const [hoverTitle, setHoverTitle] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
+  const [language, setLanguage] = useState<Language>('es');
   const scrollContainerRef = useRef<HTMLElement>(null);
+  
+  const toggleLanguage = () => setLanguage(prev => prev === 'es' ? 'en' : 'es');
+  const t = translations[language];
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -354,7 +336,7 @@ export default function App() {
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#050505] selection:bg-accent-purple/30">
-      <Navbar activeSection={activeSection} />
+      <Navbar activeSection={activeSection} language={language} toggleLanguage={toggleLanguage} />
       <StarBackground />
       <MouseGlow />
 
@@ -395,12 +377,12 @@ export default function App() {
                 </motion.h1>
                 
                 <motion.p variants={itemVariants} className="text-[16px] md:text-[18px] leading-[1.6] text-text-dim mt-2 border-l-2 border-accent-cyan pl-5 mb-8 max-w-[450px]">
-                  Me especializo en crear ecosistemas web excepcionales. Construyo soluciones front-end destacadas y arquitecturas back-end robustas para marcas que quieren liderar el mercado digital.
+                  {t.hero.desc}
                 </motion.p>
                 
                 <motion.div variants={itemVariants} className="flex flex-wrap items-center gap-4 mt-2">
                   <a href="#testimonios" className="bg-white text-black px-[32px] py-[16px] rounded-[100px] font-bold text-[14px] uppercase tracking-[1px] border-none flex items-center gap-[10px] w-fit hover:bg-gray-200 transition-colors cursor-pointer">
-                    Conoce más <Zap className="ml-2 w-4 h-4" />
+                    {t.hero.btn} <Zap className="ml-2 w-4 h-4" />
                   </a>
                 </motion.div>
               </div>
@@ -449,7 +431,7 @@ export default function App() {
               viewport={{ once: false }}
               className="mb-10 text-center md:text-left"
             >
-              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white mb-2">Skills & <span className="text-accent-purple">Experience.</span></h2>
+              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white mb-2">{t.skills.title1}<span className="text-accent-purple">{t.skills.title2}</span></h2>
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-10 gap-[20px]">
@@ -467,15 +449,15 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="font-sans text-[40px] font-bold text-text-main">5+</h3>
-                    <p className="text-text-dim font-mono text-[10px] tracking-[2px] uppercase mt-1">Años de código continuo</p>
+                    <p className="text-text-dim font-mono text-[10px] tracking-[2px] uppercase mt-1">{t.skills.years}</p>
                   </div>
                 </div>
                 
                 <div className="bento-card bg-gradient-to-br from-glass to-bg-dark border-glass-border relative overflow-hidden group">
                   <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/setup/800/600')] opacity-5 group-hover:opacity-10 transition-opacity mix-blend-overlay object-cover" />
                   <Terminal className="w-6 h-6 text-accent-purple mb-4" />
-                  <h3 className="font-sans text-[18px] font-semibold text-text-main mb-2">Stack Principal</h3>
-                  <p className="text-text-dim text-[13px]">ReactJS, NestJS, TailwindCSS. Arquitecturas escalables centradas en el usuario y rendimiento.</p>
+                  <h3 className="font-sans text-[18px] font-semibold text-text-main mb-2">{t.skills.stackTitle}</h3>
+                  <p className="text-text-dim text-[13px]">{t.skills.stackDesc}</p>
                 </div>
               </motion.div>
 
@@ -494,10 +476,10 @@ export default function App() {
                  }}
                  className="md:col-span-6 bento-card flex flex-col justify-center py-10"
               >
-                <span className="text-[10px] uppercase tracking-[2px] text-accent-cyan mb-[12px] block">Especialidad Técnica</span>
-                <h3 className="text-[22px] font-sans font-semibold text-white mb-6">El arsenal con el que construyo</h3>
+                <span className="text-[10px] uppercase tracking-[2px] text-accent-cyan mb-[12px] block">{t.skills.specialtySubtitle}</span>
+                <h3 className="text-[22px] font-sans font-semibold text-white mb-6">{t.skills.specialtyTitle}</h3>
                  <div className="flex flex-wrap gap-[8px]">
-                  {skills.map((skill, idx) => (
+                  {skillsArray.map((skill, idx) => (
                     <motion.div 
                       key={idx}
                       variants={{
@@ -525,11 +507,11 @@ export default function App() {
               viewport={{ once: false }}
               className="text-center md:text-left mb-10"
             >
-              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white"><Zap className="inline-block w-8 h-8 md:w-12 md:h-12 mr-3 text-accent-cyan pb-2" />Proyectos <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-cyan to-accent-purple">Destacados</span>.</h2>
+              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white"><Zap className="inline-block w-8 h-8 md:w-12 md:h-12 mr-3 text-accent-cyan pb-2" />{t.projects.title}<span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-cyan to-accent-purple">{t.projects.highlight}</span>.</h2>
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[20px]">
-              {projects.map((project, idx) => (
+              {t.projects.items.map((project, idx) => (
                 <motion.div
                   key={idx}
                   initial={{ opacity: 0, x: 50, filter: 'blur(8px)' }}
@@ -545,7 +527,7 @@ export default function App() {
                   <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${project.color} opacity-50 group-hover:opacity-100 transition-opacity`} />
                   <div>
                     <span className="text-[10px] uppercase tracking-[2px] text-accent-cyan mb-[12px] block">
-                      Caso de Éxito
+                      {t.projects.tag}
                     </span>
                     <h3 className="text-[22px] font-sans font-semibold text-text-main mb-[12px] group-hover:text-accent-cyan transition-colors">
                       {project.title}
@@ -556,14 +538,14 @@ export default function App() {
                   </div>
                   <div className="mt-auto">
                     <div className="flex flex-wrap gap-2 mb-6">
-                      {project.tech.map((t) => (
-                        <span key={t} className="px-[10px] py-[4px] border border-glass-border rounded-[4px] text-[11px] text-text-main bg-black/20">
-                          {t}
+                      {project.tech.map((tItem) => (
+                        <span key={tItem} className="px-[10px] py-[4px] border border-glass-border rounded-[4px] text-[11px] text-text-main bg-black/20">
+                          {tItem}
                         </span>
                       ))}
                     </div>
                     <a href={project.link} className="inline-flex items-center text-[12px] uppercase tracking-[1px] font-bold text-white group-hover:text-accent-purple transition-colors">
-                      Explorar Sistema <ExternalLink className="w-4 h-4 ml-2" />
+                      {t.projects.btn} <ExternalLink className="w-4 h-4 ml-2" />
                     </a>
                   </div>
                 </motion.div>
@@ -581,11 +563,11 @@ export default function App() {
               viewport={{ once: false }}
               className="text-center mb-16"
             >
-              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white mb-4">Lo que opinan mis <span className="text-accent-cyan">clientes.</span></h2>
+              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white mb-4">{t.testimonials.title1}<span className="text-accent-cyan">{t.testimonials.title2}</span></h2>
             </motion.div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {testimonials.map((testi, i) => (
+              {t.testimonials.items.map((testi, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: 50, scale: 0.95 }}
@@ -605,7 +587,7 @@ export default function App() {
           </div>
           
           <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-center text-text-dim text-[12px] uppercase tracking-[1px]">
-             <p>Diseñado en AI Studio • {new Date().getFullYear()} JUANCODEV</p>
+             <p>{t.testimonials.footer} • {new Date().getFullYear()} JUANCODEV</p>
           </div>
         </ParallaxSection>
 
