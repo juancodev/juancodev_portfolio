@@ -44,10 +44,10 @@ body {
   @apply bg-glass backdrop-blur-[10px] border border-glass-border rounded-[12px] p-6 hover:bg-glass/50 transition-all duration-300;
 }
 
-/* Ocultar el cursor original del sistema en todos los elementos por completo */
-*, *::before, *::after {
+/* Ocultar el cursor original del sistema en todos los elementos por completo - Comentado por estabilidad e interacción perfecta en iFrames */
+/* *, *::before, *::after {
   cursor: none !important;
-}
+} */
 
 /* Outline Text Effect */
 .outline-text {

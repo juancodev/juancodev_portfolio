@@ -2,5 +2,5 @@
   "name": "JUANCODEV Portfolio",
   "description": "Portafolio profesional y destacado de JUANCODEV",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

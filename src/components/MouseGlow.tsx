@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { motion, useMotionValue, useSpring } from 'motion/react';
+import { motion, useMotionValue, useSpring } from 'framer-motion';
 
 export default function MouseGlow() {
   const mouseX = useMotionValue(0);
@@ -44,27 +44,23 @@ export default function MouseGlow() {
     <>
       {/* Intense center dot (1:1 precision mapping, no spring delay) */}
       <motion.div
-        className="pointer-events-none fixed top-0 left-0 z-50 rounded-full bg-accent-cyan mix-blend-screen"
+        className="pointer-events-none fixed top-0 left-0 z-50 rounded-full bg-accent-cyan mix-blend-screen -translate-x-1/2 -translate-y-1/2"
         style={{
           x: mouseX, 
           y: mouseY,
           width: isHovering ? 24 : 12,
           height: isHovering ? 24 : 12,
-          translateX: '-50%',
-          translateY: '-50%',
         }}
         transition={{ type: 'spring', damping: 10, stiffness: 200, mass: 0.5 }}
       />
       {/* Outer ambient glow (uses spring for trailing effect) */}
       <motion.div
-        className="pointer-events-none fixed top-0 left-0 z-40 rounded-full bg-accent-purple/20 blur-[80px]"
+        className="pointer-events-none fixed top-0 left-0 z-40 rounded-full bg-accent-purple/20 blur-[80px] -translate-x-1/2 -translate-y-1/2"
         style={{
           x: smoothX,
           y: smoothY,
           width: 400,
           height: 400,
-          translateX: '-50%',
-          translateY: '-50%',
         }}
       />
     </>

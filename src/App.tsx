@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion, useMotionValue, useSpring, useTransform, AnimatePresence, useScroll } from 'motion/react';
+import { motion, useMotionValue, useSpring, useTransform, AnimatePresence, useScroll } from 'framer-motion';
 import { Github, Linkedin, Mail, ExternalLink, Terminal, Code2, Briefcase, Zap, Languages } from 'lucide-react';
 import { IconType } from 'react-icons';
 import { SiReact, SiJavascript, SiTypescript, SiVite, SiTailwindcss, SiNestjs, SiPostgresql, SiMongodb, SiDocker, SiGit } from 'react-icons/si';
@@ -7,13 +7,31 @@ import StarBackground from './components/StarBackground';
 import MouseGlow from './components/MouseGlow';
 import ContactForm from './components/ContactForm';
 import { Language, translations } from './i18n';
+import { useFirebaseProjects } from './hooks/useFirebaseProjects';
+import AdminPanel from './components/AdminPanel';
 
 const skillsArray = [
   "JavaScript / TypeScript", "React.js / Next.js", "NestJS / Express", 
   "Tailwind CSS", "PostgreSQL / MongoDB", "Git / Docker", "Framer Motion", "Arquitectura Web"
 ];
 
-const Navbar = ({ activeSection, language, toggleLanguage }: { activeSection: string, language: Language, toggleLanguage: () => void }) => {
+const Navbar = ({ 
+  activeSection, 
+  language, 
+  toggleLanguage,
+  rawProjects,
+  onAdd,
+  onUpdate,
+  onDelete
+}: { 
+  activeSection: string, 
+  language: Language, 
+  toggleLanguage: () => void,
+  rawProjects: any[],
+  onAdd: (proj: any) => Promise<void>,
+  onUpdate: (id: string, proj: any) => Promise<void>,
+  onDelete: (id: string) => Promise<void>
+}) => {
   const t = translations[language];
   const links = [
     { id: 'hero', label: t.nav.home },
@@ -67,6 +85,12 @@ const Navbar = ({ activeSection, language, toggleLanguage }: { activeSection: st
             <Languages className="w-5 h-5 group-hover:text-accent-cyan transition-colors" />
             <span className="text-[10px] font-bold tracking-widest leading-none mt-[2px]">{language === 'es' ? 'EN' : 'ES'}</span>
           </button>
+          <AdminPanel 
+            projects={rawProjects}
+            onAdd={onAdd}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+          />
         </div>
       </div>
     </header>
@@ -231,6 +255,14 @@ export default function App() {
   const [language, setLanguage] = useState<Language>('es');
   const scrollContainerRef = useRef<HTMLElement>(null);
   
+  const { 
+    rawProjects, 
+    addProject, 
+    updateProject, 
+    deleteProject, 
+    getMappedProjects 
+  } = useFirebaseProjects(translations.es.projects.items);
+  
   const toggleLanguage = () => setLanguage(prev => prev === 'es' ? 'en' : 'es');
   const t = translations[language];
 
@@ -336,7 +368,15 @@ export default function App() {
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#050505] selection:bg-accent-purple/30">
-      <Navbar activeSection={activeSection} language={language} toggleLanguage={toggleLanguage} />
+      <Navbar 
+        activeSection={activeSection} 
+        language={language} 
+        toggleLanguage={toggleLanguage} 
+        rawProjects={rawProjects}
+        onAdd={addProject}
+        onUpdate={updateProject}
+        onDelete={deleteProject}
+      />
       <StarBackground />
       <MouseGlow />
 
@@ -511,9 +551,9 @@ export default function App() {
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[20px]">
-              {t.projects.items.map((project, idx) => (
+              {getMappedProjects(language).map((project, idx) => (
                 <motion.div
-                  key={idx}
+                  key={project.id || idx}
                   initial={{ opacity: 0, x: 50, filter: 'blur(8px)' }}
                   whileInView={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                   viewport={{ once: false }}
@@ -544,7 +584,7 @@ export default function App() {
                         </span>
                       ))}
                     </div>
-                    <a href={project.link} className="inline-flex items-center text-[12px] uppercase tracking-[1px] font-bold text-white group-hover:text-accent-purple transition-colors">
+                    <a href={project.link} target={project.link && project.link.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="inline-flex items-center text-[12px] uppercase tracking-[1px] font-bold text-white group-hover:text-accent-purple transition-colors">
                       {t.projects.btn} <ExternalLink className="w-4 h-4 ml-2" />
                     </a>
                   </div>

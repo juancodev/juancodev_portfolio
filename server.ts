@@ -49,7 +49,24 @@ async function startServer() {
         next();
       } else {
         // Send frontend routes to Vite
-        vite.middlewares(req, res, next);
+        vite.middlewares(req, res, async () => {
+          try {
+            const url = req.originalUrl || req.url;
+            if (!url.includes('.')) {
+              const fs = await import('fs');
+              const htmlPath = path.resolve(process.cwd(), 'index.html');
+              let html = fs.readFileSync(htmlPath, 'utf-8');
+              html = await vite.transformIndexHtml(url, html);
+              res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+            } else {
+              next();
+            }
+          } catch (e: any) {
+            vite.ssrFixStacktrace(e);
+            console.error('Vite transform index.html error:', e);
+            res.status(500).end(e.message);
+          }
+        });
       }
     });
   } else {
