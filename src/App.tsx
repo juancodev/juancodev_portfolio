@@ -7,7 +7,7 @@ import StarBackground from './components/StarBackground';
 import MouseGlow from './components/MouseGlow';
 import ContactForm from './components/ContactForm';
 import { Language, translations } from './i18n';
-import { useFirebaseProjects } from './hooks/useFirebaseProjects';
+import { useApiProjects } from './hooks/useApiProjects';
 import AdminPanel from './components/AdminPanel';
 
 const skillsArray = [
@@ -20,17 +20,21 @@ const Navbar = ({
   language, 
   toggleLanguage,
   rawProjects,
+  dbStatus,
   onAdd,
   onUpdate,
-  onDelete
+  onDelete,
+  onReload
 }: { 
   activeSection: string, 
   language: Language, 
   toggleLanguage: () => void,
   rawProjects: any[],
+  dbStatus: any,
   onAdd: (proj: any) => Promise<void>,
   onUpdate: (id: string, proj: any) => Promise<void>,
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => Promise<void>,
+  onReload: () => Promise<void>
 }) => {
   const t = translations[language];
   const links = [
@@ -87,9 +91,11 @@ const Navbar = ({
           </button>
           <AdminPanel 
             projects={rawProjects}
+            dbStatus={dbStatus}
             onAdd={onAdd}
             onUpdate={onUpdate}
             onDelete={onDelete}
+            onReload={onReload}
           />
         </div>
       </div>
@@ -257,11 +263,13 @@ export default function App() {
   
   const { 
     rawProjects, 
+    dbStatus,
     addProject, 
     updateProject, 
     deleteProject, 
-    getMappedProjects 
-  } = useFirebaseProjects(translations.es.projects.items);
+    getMappedProjects,
+    reloadProjects
+  } = useApiProjects(translations.es.projects.items);
   
   const toggleLanguage = () => setLanguage(prev => prev === 'es' ? 'en' : 'es');
   const t = translations[language];
@@ -373,9 +381,11 @@ export default function App() {
         language={language} 
         toggleLanguage={toggleLanguage} 
         rawProjects={rawProjects}
+        dbStatus={dbStatus}
         onAdd={addProject}
         onUpdate={updateProject}
         onDelete={deleteProject}
+        onReload={reloadProjects}
       />
       <StarBackground />
       <MouseGlow />

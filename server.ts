@@ -2,11 +2,27 @@ import 'reflect-metadata';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { NestFactory } from '@nestjs/core';
-import { Module, Controller, Post, Body, ValidationPipe } from '@nestjs/common';
-import { ExpressAdapter } from '@nestjs/platform-express';
+import { 
+  Module, 
+  Controller, 
+  Post, 
+  Get, 
+  Patch, 
+  Delete, 
+  Body, 
+  Param, 
+  Headers, 
+  HttpException, 
+  HttpStatus, 
+  ValidationPipe 
+} from '@nestjs/common';
 import path from 'path';
 
-// --- NEST CONTROLLERS AND MODULES ---
+// Import our DB and Auth Services
+import { dbService } from './src/db/db.service';
+import { AuthService } from './src/auth/auth.service';
+
+// --- NEST CONTROLLERS ---
 
 @Controller('contact')
 class ContactController {
@@ -17,8 +33,164 @@ class ContactController {
   }
 }
 
+@Controller('auth')
+class AuthController {
+  @Post('register')
+  async register(@Body() body: any) {
+    const { email, password } = body;
+    if (!email || !password) {
+      throw new HttpException('Email y contraseña requeridos.', HttpStatus.BAD_REQUEST);
+    }
+
+    const existingUser = await dbService.getUserByEmail(email);
+    if (existingUser) {
+      throw new HttpException('El correo ya está registrado.', HttpStatus.CONFLICT);
+    }
+
+    const passwordHash = await AuthService.hashPassword(password);
+    const user = await dbService.createUser(email, passwordHash);
+
+    const token = AuthService.generateToken({ userId: user._id, email: user.email });
+    return {
+      success: true,
+      user: { id: user._id, email: user.email },
+      token
+    };
+  }
+
+  @Post('login')
+  async login(@Body() body: any) {
+    const { email, password } = body;
+    if (!email || !password) {
+      throw new HttpException('Email y contraseña requeridos.', HttpStatus.BAD_REQUEST);
+    }
+
+    const user = await dbService.getUserByEmail(email);
+    if (!user) {
+      throw new HttpException('Usuario no registrado.', HttpStatus.NOT_FOUND);
+    }
+
+    const isMatch = await AuthService.comparePassword(password, user.passwordHash);
+    if (!isMatch) {
+      throw new HttpException('Contraseña incorrecta.', HttpStatus.UNAUTHORIZED);
+    }
+
+    const token = AuthService.generateToken({ userId: user._id, email: user.email });
+    return {
+      success: true,
+      user: { id: user._id, email: user.email },
+      token
+    };
+  }
+
+  @Get('me')
+  async getMe(@Headers() headers: any) {
+    const decoded = AuthService.getAuthUserFromRequest(headers);
+    if (!decoded) {
+      throw new HttpException('No autorizado.', HttpStatus.UNAUTHORIZED);
+    }
+
+    const user = await dbService.getUserByEmail(decoded.email);
+    if (!user) {
+      throw new HttpException('Usuario no existe en base de datos.', HttpStatus.UNAUTHORIZED);
+    }
+
+    return {
+      success: true,
+      user: { id: user._id, email: user.email }
+    };
+  }
+}
+
+@Controller('projects')
+class ProjectsController {
+  @Get()
+  async getProjects() {
+    const projects = await dbService.getProjects();
+    return {
+      success: true,
+      projects
+    };
+  }
+
+  @Get('db-info')
+  async getDbInfo() {
+    return {
+      success: true,
+      status: dbService.getDbStatus()
+    };
+  }
+
+  @Post()
+  async addProject(@Headers() headers: any, @Body() body: any) {
+    const decoded = AuthService.getAuthUserFromRequest(headers);
+    if (!decoded) {
+      throw new HttpException('No autorizado. Sesión inválida o expirada.', HttpStatus.UNAUTHORIZED);
+    }
+
+    const { title_es, title_en, description_es, description_en, tech, link, color } = body;
+    
+    if (!title_es || !title_en || !description_es || !description_en) {
+      throw new HttpException('Faltan campos requeridos.', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const newProject = await dbService.addProject({
+        title_es,
+        title_en,
+        description_es,
+        description_en,
+        tech: Array.isArray(tech) ? tech : [],
+        link: link || '#',
+        color: color || 'from-accent-cyan to-accent-purple'
+      });
+      return { success: true, project: newProject };
+    } catch (err: any) {
+      throw new HttpException('Error al agregar proyecto: ' + err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch(':id')
+  async updateProject(@Param('id') id: string, @Headers() headers: any, @Body() body: any) {
+    const decoded = AuthService.getAuthUserFromRequest(headers);
+    if (!decoded) {
+      throw new HttpException('No autorizado. Sesión inválida o expirada.', HttpStatus.UNAUTHORIZED);
+    }
+
+    try {
+      const updated = await dbService.updateProject(id, body);
+      if (!updated) {
+        throw new HttpException('Proyecto no encontrado.', HttpStatus.NOT_FOUND);
+      }
+      return { success: true, message: 'Proyecto actualizado correctamente.' };
+    } catch (err: any) {
+      throw new HttpException('Error al actualizar: ' + err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Delete(':id')
+  async deleteProject(@Param('id') id: string, @Headers() headers: any) {
+    const decoded = AuthService.getAuthUserFromRequest(headers);
+    if (!decoded) {
+      throw new HttpException('No autorizado. Sesión inválida o expirada.', HttpStatus.UNAUTHORIZED);
+    }
+
+    try {
+      const deleted = await dbService.deleteProject(id);
+      if (!deleted) {
+        throw new HttpException('Proyecto no encontrado.', HttpStatus.NOT_FOUND);
+      }
+      return { success: true, message: 'Proyecto eliminado correctamente.' };
+    } catch (err: any) {
+      throw new HttpException('Error al eliminar: ' + err.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+}
+
+// --- NEST APP APP_MODULE ---
+
 @Module({
-  controllers: [ContactController],
+  controllers: [ContactController, AuthController, ProjectsController],
 })
 class AppModule {}
 
@@ -36,8 +208,6 @@ async function startServer() {
   nestApp.setGlobalPrefix('api');
   
   // Route everything else to Vite for Development, or static files for Production
-  // IMPORTANT: We add this via nestApp.use() BEFORE await nestApp.init() 
-  // so it intercepts non-API routes before Nest's global 404 handler runs.
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

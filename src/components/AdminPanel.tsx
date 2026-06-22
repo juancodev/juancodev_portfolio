@@ -2,36 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, Lock, X, LogOut, Plus, Trash2, Edit2, 
-  Save, Globe, Key, Layout, Code, ExternalLink, RefreshCw 
+  Save, Globe, Key, Layout, Code, ExternalLink, RefreshCw, Database
 } from 'lucide-react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  User
-} from 'firebase/auth';
-import { auth } from '../lib/firebase';
-import { FirebaseProject } from '../hooks/useFirebaseProjects';
+import { ApiProject, DbStatus } from '../hooks/useApiProjects';
 
 interface AdminPanelProps {
-  projects: FirebaseProject[];
-  onAdd: (proj: Omit<FirebaseProject, 'id' | 'createdAt'>) => Promise<void>;
-  onUpdate: (id: string, proj: Partial<Omit<FirebaseProject, 'id' | 'createdAt'>>) => Promise<void>;
+  projects: ApiProject[];
+  dbStatus: DbStatus | null;
+  onAdd: (proj: Omit<ApiProject, '_id' | 'createdAt'>) => Promise<void>;
+  onUpdate: (id: string, proj: Partial<Omit<ApiProject, '_id' | 'createdAt'>>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onReload: () => Promise<void>;
 }
 
 const GRADIENT_PRESETS = [
-  { name: 'Cyan → Purple', value: 'from-accent-cyan to-accent-purple' },
-  { name: 'Purple → Pink', value: 'from-purple-500 to-pink-500' },
-  { name: 'Green → Blue', value: 'from-emerald-400 to-blue-500' },
-  { name: 'Orange → Red', value: 'from-orange-500 to-red-600' },
-  { name: 'White → Slate', value: 'from-white to-slate-500' },
+  { name: 'Cian → Púrpura', value: 'from-accent-cyan to-accent-purple' },
+  { name: 'Púrpura → Rosa', value: 'from-purple-500 to-pink-500' },
+  { name: 'Esmeralda → Azul', value: 'from-emerald-400 to-blue-500' },
+  { name: 'Naranja → Rojo', value: 'from-orange-500 to-red-600' },
+  { name: 'Blanco → Pizarra', value: 'from-white to-slate-500' },
 ];
 
-export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: AdminPanelProps) {
+export default function AdminPanel({ projects, dbStatus, onAdd, onUpdate, onDelete, onReload }: AdminPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   
   // Auth Form State
@@ -55,13 +49,33 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
-  // Track authenticated user state
+  // Check token status on mount/modal open
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
+    const checkAuthStatus = async () => {
+      const token = localStorage.getItem('admin_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+        if (data.success && data.user) {
+          setUserEmail(data.user.email);
+        } else {
+          // Token expired or invalid
+          localStorage.removeItem('admin_token');
+          setUserEmail(null);
+        }
+      } catch {
+        // Safe backend down fallback
+      }
+    };
+    
+    checkAuthStatus();
+  }, [isOpen]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,35 +83,34 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
     setAuthLoading(true);
     
     try {
-      if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
+      const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Error en el proceso de autenticación');
       }
+
+      // Save credentials in client space
+      localStorage.setItem('admin_token', data.token);
+      setUserEmail(data.user.email);
       setEmail('');
       setPassword('');
     } catch (err: any) {
       console.error(err);
-      if (err.code === 'auth/user-not-found') {
-        setAuthError('Usuario no encontrado. ¿Quieres registrarte? Activá el switch de abajo.');
-      } else if (err.code === 'auth/wrong-password') {
-        setAuthError('Contraseña incorrecta. Por favor vuelve a intentarlo.');
-      } else if (err.code === 'auth/email-already-in-use') {
-        setAuthError('El correo electrónico ya está registrado.');
-      } else {
-        setAuthError(err.message || 'Error al autenticar.');
-      }
+      setAuthError(err.message || 'Error al autenticar o crear cuenta.');
     } finally {
       setAuthLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem('admin_token');
+    setUserEmail(null);
   };
 
   const handleAddTech = (e: React.KeyboardEvent) => {
@@ -115,15 +128,15 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
     setTechList(techList.filter((_, i) => i !== index));
   };
 
-  const startEdit = (proj: FirebaseProject) => {
+  const startEdit = (proj: ApiProject) => {
     setFormMode('edit');
-    setEditingId(proj.id);
+    setEditingId(proj._id);
     setTitleEs(proj.title_es);
     setTitleEn(proj.title_en);
     setDescEs(proj.description_es);
     setDescEn(proj.description_en);
-    setLink(proj.link);
-    setColor(proj.color);
+    setLink(proj.link || '');
+    setColor(proj.color || GRADIENT_PRESETS[0].value);
     setTechList(proj.tech || []);
     setFormSuccess('');
     setFormError('');
@@ -225,18 +238,18 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl max-h-[85vh] bg-[#0d0d0d] border border-glass-border rounded-2xl overflow-hidden shadow-2xl flex flex-col z-10"
+              className="relative w-full max-w-4xl max-h-[85vh] bg-[#0d0d0d] border border-glass-border rounded-xl spill-container shadow-2xl flex flex-col z-10"
               id="admin-modal-content"
             >
               {/* Header */}
-              <div className="p-6 border-b border-glass-border flex items-center justify-between bg-[#111111]">
+              <div className="p-5 border-b border-glass-border flex items-center justify-between bg-[#111111]">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-accent-cyan/10 text-accent-cyan">
                     <Settings className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white font-sans">JUANCODEV Control Core</h2>
-                    <p className="text-xs text-text-dim">Gestión del portafolio en tiempo real (Firebase)</p>
+                    <h2 className="text-md font-bold text-white font-sans">JUANCODEV Control Core</h2>
+                    <p className="text-xs text-text-dim-lighter">Gestión y administración del portafolio (MongoDB + JWT)</p>
                   </div>
                 </div>
                 <button 
@@ -247,40 +260,56 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                 </button>
               </div>
 
+              {/* Db Status banner - Sencillo para trabajar local */}
+              {dbStatus && (
+                <div className={`px-5 py-2.5 text-xs font-mono flex items-center gap-2 border-b border-glass-border ${
+                  dbStatus.isFallback ? 'bg-amber-950/20 text-amber-200 border-amber-950/40' : 'bg-emerald-950/20 text-emerald-300 border-emerald-950/40'
+                }`}>
+                  <Database className="w-3.5 h-3.5 shrink-0" />
+                  <span className="font-semibold">{dbStatus.isFallback ? 'Modo Local:' : 'Modo Cloud:'}</span>
+                  <span>{dbStatus.type}</span>
+                  {dbStatus.isFallback && (
+                    <span className="hidden md:inline text-text-dim text-[10px]"> (Datos guardados de forma segura en: {dbStatus.location})</span>
+                  )}
+                </div>
+              )}
+
               {/* Scrollable Body Content */}
-              <div className="flex-1 overflow-y-auto p-6 md:p-8">
+              <div className="flex-1 overflow-y-auto p-5 md:p-6">
                 {/* 1. NOT AUTHENTICATED -> SHOW LOGIN SCREEN */}
-                {!user ? (
-                  <div className="max-w-md mx-auto py-8">
-                    <div className="text-center mb-8">
-                      <div className="w-12 h-12 rounded-full bg-accent-purple/10 flex items-center justify-center mx-auto mb-4 text-accent-purple">
-                        <Lock className="w-6 h-6" />
+                {!userEmail ? (
+                  <div className="max-w-md mx-auto py-4">
+                    <div className="text-center mb-6">
+                      <div className="w-11 h-11 rounded-full bg-accent-purple/10 flex items-center justify-center mx-auto mb-3 text-accent-purple">
+                        <Lock className="w-5 h-5" />
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Ingresar credenciales</h3>
-                      <p className="text-sm text-text-dim">Identifícate para agregar, actualizar o eliminar proyectos del portafolio.</p>
+                      <h3 className="text-lg font-bold text-white mb-1.5 font-sans">Ingresar credenciales</h3>
+                      <p className="text-xs text-text-dim leading-relaxed">
+                        Inicia sesión con tu cuenta de administrador o crea una inicial desde tu entorno local para poder añadir y editar proyectos.
+                      </p>
                     </div>
 
                     <form onSubmit={handleAuth} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-mono uppercase tracking-wider text-text-dim mb-1">Correo Electrónico</label>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-text-dim mb-1">Correo Electrónico</label>
                         <input 
                           type="email" 
                           required 
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          className="w-full bg-[#151515] border border-glass-border rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent-cyan transition-colors"
+                          className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan transition-colors"
                           placeholder="tu-correo@ejemplo.com"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-mono uppercase tracking-wider text-text-dim mb-1">Contraseña</label>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-text-dim mb-1">Contraseña</label>
                         <input 
                           type="password" 
                           required 
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          className="w-full bg-[#151515] border border-glass-border rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-accent-cyan transition-colors"
+                          className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan transition-colors"
                           placeholder="••••••••"
                         />
                       </div>
@@ -294,62 +323,62 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                       <button 
                         type="submit" 
                         disabled={authLoading}
-                        className="w-full bg-white text-black font-bold uppercase tracking-wider text-xs py-3 rounded-lg hover:bg-gray-200 active:scale-98 transition-all flex items-center justify-center gap-2"
+                        className="w-full bg-white text-black font-bold uppercase tracking-wider text-xs py-3 rounded-lg hover:bg-gray-200 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
                       >
                         {authLoading ? (
                           <RefreshCw className="w-4 h-4 animate-spin" />
                         ) : (
                           <>
                             <Key className="w-4 h-4" />
-                            {isRegistering ? 'Crear Administrador' : 'Iniciar Sesión'}
+                            {isRegistering ? 'Crear Administrador local' : 'Iniciar Sesión'}
                           </>
                         )}
                       </button>
 
                       <div className="pt-4 border-t border-glass-border flex items-center justify-between text-xs">
                         <span className="text-text-dim">
-                          {isRegistering ? '¿Ya tienes cuenta?' : '¿Primer uso local?'}
+                          {isRegistering ? '¿Ya tienes cuenta?' : '¿Primer uso o sin cuenta?'}
                         </span>
                         <button 
                           type="button"
                           onClick={() => setIsRegistering(!isRegistering)}
-                          className="text-accent-cyan hover:underline hover:text-accent-purple transition-all font-semibold"
+                          className="text-accent-cyan hover:underline transition-all font-semibold cursor-pointer"
                         >
-                          {isRegistering ? 'Volver al Login' : 'Crear Admin Inicial'}
+                          {isRegistering ? 'Ir al Login' : 'Crear Admin Inicial'}
                         </button>
                       </div>
                     </form>
                   </div>
                 ) : (
                   /* 2. AUTHENTICATED -> SHOW CRUD INTERFACE */
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     {/* Logged state widget */}
-                    <div className="bg-glass border border-glass-border p-4 rounded-xl flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center gap-2.5 text-sm">
-                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-white/80 font-mono text-xs">{user.email} (Administrador)</span>
+                    <div className="bg-glass border border-glass-border p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-2.5 text-xs">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-white/80 font-mono text-xs">{userEmail} (Admin)</span>
                       </div>
                       <button 
                         onClick={handleLogout}
-                        className="flex items-center gap-2 text-xs font-mono py-1.5 px-3 rounded-lg border border-red-500/20 hover:border-red-500 hover:bg-red-950/30 text-red-400 hover:text-red-200 transition-all duration-300"
+                        className="flex items-center gap-2 text-[10px] font-mono py-1.5 px-3 rounded-lg border border-red-500/20 hover:border-red-500 hover:bg-red-950/30 text-red-400 hover:text-red-200 transition-all duration-300 cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         Cerrar Sesión
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                       {/* Left: Project Form */}
-                      <div className="lg:col-span-7 bg-[#111] border border-glass-border rounded-xl p-6 space-y-6">
+                      <div className="lg:col-span-7 bg-[#111] border border-glass-border rounded-xl p-5 space-y-5">
                         <div className="flex items-center justify-between border-b border-glass-border pb-3">
-                          <h3 className="font-bold text-white text-base flex items-center gap-2">
+                          <h3 className="font-bold text-white text-sm flex items-center gap-2 font-sans">
                             <Layout className="w-4 h-4 text-accent-cyan" />
                             {formMode === 'create' ? 'Agregar Nuevo Proyecto' : 'Editar Proyecto'}
                           </h3>
                           {formMode === 'edit' && (
                             <button 
                               onClick={resetForm}
-                              className="text-xs text-text-dim hover:text-white underline"
+                              className="text-xs text-text-dim hover:text-white underline cursor-pointer"
                             >
                               Cancelar Edición
                             </button>
@@ -360,24 +389,24 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                           {/* Multilingual Title row */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Título (Español)</label>
+                              <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Título (Español)</label>
                               <input 
                                 type="text"
                                 required
                                 value={titleEs}
                                 onChange={(e) => setTitleEs(e.target.value)}
-                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan"
+                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan"
                                 placeholder="E-Commerce Plataforma"
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Title (Inglés)</label>
+                              <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Title (Inglés)</label>
                               <input 
                                 type="text"
                                 required
                                 value={titleEn}
                                 onChange={(e) => setTitleEn(e.target.value)}
-                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan"
+                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan"
                                 placeholder="E-Commerce Platform"
                               />
                             </div>
@@ -385,46 +414,46 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
 
                           {/* Descriptions row */}
                           <div>
-                            <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Descripción (Español)</label>
+                            <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Descripción (Español)</label>
                             <textarea 
                               required
                               rows={3}
                               value={descEs}
                               onChange={(e) => setDescEs(e.target.value)}
-                              className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent-cyan resize-none"
-                              placeholder="Construido con ReactJS y NestJS..."
+                              className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan resize-none"
+                              placeholder="Construido con ReactJS y NestJS de forma limpia..."
                             />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Description (Inglés)</label>
+                            <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Description (Inglés)</label>
                             <textarea 
                               required
                               rows={3}
                               value={descEn}
                               onChange={(e) => setDescEn(e.target.value)}
-                              className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent-cyan resize-none"
-                              placeholder="Built using ReactJS and NestJS..."
+                              className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan resize-none"
+                              placeholder="Built with ReactJS and NestJS..."
                             />
                           </div>
 
                           {/* Link & Color Preset row */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Enlace del Proyecto (Link)</label>
+                              <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Enlace del Proyecto (Link)</label>
                               <input 
                                 type="text"
                                 value={link}
                                 onChange={(e) => setLink(e.target.value)}
-                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan"
+                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan"
                                 placeholder="https://github.com/..."
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">Gradiente de Acento</label>
+                              <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">Gradiente de Acento</label>
                               <select
                                 value={color}
                                 onChange={(e) => setColor(e.target.value)}
-                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent-cyan cursor-pointer"
+                                className="w-full bg-[#151515] border border-glass-border rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-accent-cyan cursor-pointer"
                               >
                                 {GRADIENT_PRESETS.map((p) => (
                                   <option key={p.value} value={p.value}>{p.name}</option>
@@ -435,14 +464,14 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
 
                           {/* Tech Skill List */}
                           <div>
-                            <label className="block text-[11px] font-mono text-text-dim mb-1 uppercase">
-                              Tecnologías (Pulsa Enter o una Coma para agregar)
+                            <label className="block text-[10px] font-mono text-text-dim mb-1 uppercase">
+                              Tecnologías (Enter o Coma para agregar)
                             </label>
                             <div className="border border-glass-border bg-[#151515] rounded-lg p-2 flex flex-wrap gap-1.5 focus-within:border-accent-cyan transition-colors">
                               {techList.map((tech, idx) => (
                                 <span 
                                   key={idx}
-                                  className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan text-xs rounded-full font-medium"
+                                  className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 bg-accent-cyan/10 border border-accent-cyan/20 text-accent-cyan text-[10px] rounded-full font-medium"
                                 >
                                   {tech}
                                   <button 
@@ -450,7 +479,7 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                                     onClick={() => removeTech(idx)}
                                     className="p-0.5 hover:bg-accent-cyan/20 rounded-full text-accent-cyan transition-colors"
                                   >
-                                    <X className="w-3 h-3" />
+                                    <X className="w-2.5 h-2.5" />
                                   </button>
                                 </span>
                               ))}
@@ -459,7 +488,7 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                                 value={techInput}
                                 onKeyDown={handleAddTech}
                                 onChange={(e) => setTechInput(e.target.value)}
-                                className="flex-1 bg-transparent border-none outline-none text-sm text-white px-1 py-0.5 min-w-[100px]"
+                                className="flex-1 bg-transparent border-none outline-none text-xs text-white px-1 py-0.5 min-w-[100px]"
                                 placeholder={techList.length === 0 ? 'Ej: React, NestJS...' : 'Agregar...'}
                               />
                             </div>
@@ -480,7 +509,7 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                           <button
                             type="submit"
                             disabled={formLoading}
-                            className="w-full bg-accent-cyan text-[#050505] hover:bg-cyan-300 font-extrabold uppercase tracking-wide text-xs py-3 rounded-lg flex items-center justify-center gap-2 active:scale-98 transition-all"
+                            className="w-full bg-accent-cyan text-[#050505] hover:bg-cyan-300 font-extrabold uppercase tracking-wide text-xs py-3 rounded-lg flex items-center justify-center gap-2 active:scale-98 transition-all cursor-pointer"
                           >
                             {formLoading ? (
                               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -495,46 +524,46 @@ export default function AdminPanel({ projects, onAdd, onUpdate, onDelete }: Admi
                       </div>
 
                       {/* Right: Existing Projects List */}
-                      <div className="lg:col-span-5 space-y-4">
-                        <h3 className="font-bold text-white text-base flex items-center gap-2 border-b border-glass-border pb-3">
+                      <div className="lg:col-span-5 space-y-3.5">
+                        <h3 className="font-bold text-white text-sm flex items-center gap-2 border-b border-glass-border pb-3 font-sans">
                           <Code className="w-4 h-4 text-accent-purple" />
-                          Proyectos Actuales ({projects.length})
+                          Proyectos Guardados ({projects.length})
                         </h3>
 
                         {projects.length === 0 ? (
-                          <div className="border border-dashed border-glass-border p-8 rounded-xl text-center text-text-dim">
-                            <Layout className="w-8 h-8 mx-auto mb-2 text-white/20" />
-                            <p className="text-sm">Sin proyectos en base de datos.</p>
-                            <p className="text-xs text-text-dim mt-1">Crea tu primer caso de éxito usando el formulario de la izquierda.</p>
+                          <div className="border border-dashed border-glass-border p-6 rounded-xl text-center text-text-dim">
+                            <Layout className="w-7 h-7 mx-auto mb-1.5 text-white/20" />
+                            <p className="text-xs">Sin proyectos en la DB todavía.</p>
+                            <p className="text-[10px] text-text-dim-lighter mt-1">Crea tu primer proyecto usando el formulario.</p>
                           </div>
                         ) : (
-                          <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                          <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
                             {projects.map((proj) => (
                               <div 
-                                key={proj.id}
-                                className="group/item border border-glass-border bg-glass hover:bg-glass/30 rounded-lg p-4 flex items-center justify-between gap-4 transition-all"
+                                key={proj._id}
+                                className="group/item border border-glass-border bg-glass hover:bg-glass/30 rounded-lg p-3 flex items-center justify-between gap-3 transition-all"
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <h4 className="font-bold text-white text-sm truncate">{proj.title_es}</h4>
-                                    <span className="text-[10px] font-mono text-text-dim px-1.5 py-0.5 bg-black/40 border border-glass-border rounded">
+                                    <h4 className="font-bold text-white text-xs truncate">{proj.title_es}</h4>
+                                    <span className="text-[9px] font-mono text-text-dim px-1 bg-black/40 border border-glass-border rounded">
                                       {proj.tech.length} tags
                                     </span>
                                   </div>
-                                  <p className="text-xs text-text-dim line-clamp-1 mt-0.5">{proj.description_es}</p>
+                                  <p className="text-[11px] text-text-dim line-clamp-1 mt-0.5">{proj.description_es}</p>
                                 </div>
 
                                 <div className="flex items-center gap-1 bg-black/60 p-1 rounded-lg border border-glass-border shrink-0 opacity-80 group-hover/item:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => startEdit(proj)}
-                                    className="p-1.5 hover:bg-accent-purple/10 text-text-dim hover:text-accent-purple rounded transition-colors"
+                                    className="p-1 hover:bg-accent-purple/10 text-text-dim hover:text-accent-purple rounded transition-colors cursor-pointer"
                                     title="Editar proyecto"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
-                                    onClick={() => handleDelete(proj.id)}
-                                    className="p-1.5 hover:bg-red-500/10 text-text-dim hover:text-red-400 rounded transition-colors"
+                                    onClick={() => handleDelete(proj._id)}
+                                    className="p-1 hover:bg-red-500/10 text-text-dim hover:text-red-400 rounded transition-colors cursor-pointer"
                                     title="Eliminar proyecto"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
