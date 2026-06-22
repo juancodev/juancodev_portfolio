@@ -31,24 +31,12 @@ body {
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
-  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  @apply bg-bg-dark;
 }
 ::-webkit-scrollbar-thumb {
   @apply bg-glass-border rounded-full hover:bg-glass transition-colors;
-}
-
-/* Scrollbar Utility for hiding */
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-.no-scrollbar {
-  -ms-overflow-style: none !important;  /* IE/Edge */
-  scrollbar-width: none !important;  /* Firefox */
 }
 
 /* Bento box base styles aligned to new theme */

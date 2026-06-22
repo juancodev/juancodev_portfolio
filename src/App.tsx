@@ -412,7 +412,7 @@ export default function App() {
       <MouseGlow />
 
       {/* Main Snap Scroll Container (Horizontal with Parallax) */}
-      <main ref={scrollContainerRef} className="relative z-10 flex h-full w-full overflow-x-scroll overflow-y-hidden snap-x snap-mandatory scroll-smooth no-scrollbar">
+      <main ref={scrollContainerRef} className="relative z-10 flex h-full w-full overflow-x-scroll overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         
         {/* 1. HERO SECTION */}
         <ParallaxSection id="hero" containerRef={scrollContainerRef} offset={80}>
@@ -430,29 +430,21 @@ export default function App() {
 
               {/* Typography Content */}
               <div className="flex-1 flex flex-col justify-start max-w-2xl w-full relative z-20 pt-20 md:pt-0">
-                <motion.h1 variants={itemVariants} className="text-[clamp(30px,8.5vw,110px)] font-sans font-black tracking-[-2px] md:tracking-[-4px] leading-[0.9] text-white mb-5 break-words">
+                <motion.h1 variants={itemVariants} className="text-[clamp(45px,7vw,110px)] font-sans font-black tracking-[-2px] md:tracking-[-4px] leading-[0.9] text-white mb-5 break-words">
                   <div 
-                    className="relative cursor-default w-fit max-w-full overflow-hidden select-none"
+                    className="relative cursor-default w-fit group/name"
                     onMouseEnter={() => setHoverTitle(true)}
                     onMouseLeave={() => setHoverTitle(false)}
                   >
-                    {/* Invisible layout placeholder which determines parent dimension based on longest string */}
-                    <span className="block opacity-0 pointer-events-none select-none whitespace-nowrap">
-                      JUAN MONTILLA
-                    </span>
-                    
-                    {/* Default state: JUANCODEV */}
-                    <span className={`absolute inset-y-0 left-0 flex items-center transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-0 blur-xl -translate-y-6 scale-95 pointer-events-none' : 'opacity-100 blur-0 translate-y-0 scale-100'}`}>
+                    <span className={`block transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-0 blur-xl -translate-y-6 scale-95' : 'opacity-100 blur-0 translate-y-0 scale-100'}`}>
                       JUANCODEV
                     </span>
-
-                    {/* Hover state: JUAN MONTILLA */}
-                    <span className={`absolute inset-y-0 left-0 flex items-center transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-100 blur-0 translate-y-0 scale-100' : 'opacity-0 blur-xl translate-y-6 scale-95 pointer-events-none'}`}>
+                    <span className={`absolute top-0 left-0 block transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-100 blur-0 translate-y-0 scale-100' : 'opacity-0 blur-xl translate-y-6 scale-95'}`}>
                       JUAN MONTILLA
                     </span>
                   </div>
-                  <span className="block outline-text text-[clamp(28px,7vw,90px)] mt-1">DEVELOPER</span>
-                  <span className="block text-[clamp(26px,6vw,70px)] tracking-[-1px] md:tracking-[-2px] text-accent-cyan lg:whitespace-nowrap">FULLSTACK</span>
+                  <span className="block outline-text text-[clamp(40px,6vw,90px)] mt-1">DEVELOPER</span>
+                  <span className="block text-[clamp(35px,5vw,70px)] tracking-[-1px] md:tracking-[-2px] text-accent-cyan lg:whitespace-nowrap">FULLSTACK</span>
                 </motion.h1>
                 
                 <motion.p variants={itemVariants} className="text-[16px] md:text-[18px] leading-[1.6] text-text-dim mt-2 border-l-2 border-accent-cyan pl-5 mb-8 max-w-[450px]">
