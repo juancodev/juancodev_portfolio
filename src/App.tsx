@@ -247,8 +247,11 @@ const ParallaxSection = ({ children, id, className, containerRef, offset = 100 }
   const x = useTransform(scrollXProgress, [0, 1], [-offset, offset]);
 
   return (
-    <section id={id} ref={ref} className={`snap-start min-w-[100vw] w-screen h-screen flex-shrink-0 flex items-center justify-center relative overflow-hidden ${className || ''}`}>
-      <motion.div style={{ x }} className="w-full h-full flex flex-col justify-center items-center">
+    <section id={id} ref={ref} className={`snap-start min-w-[100vw] w-screen h-screen flex-shrink-0 relative overflow-hidden ${className || ''}`}>
+      <motion.div 
+        style={{ x }} 
+        className="w-full h-full flex flex-col justify-start md:justify-center items-center px-4 md:px-10 pt-[88px] md:pt-0 pb-16 md:pb-0 overflow-y-auto md:overflow-y-hidden scrollbar-thin"
+      >
         {children}
       </motion.div>
     </section>
@@ -302,6 +305,24 @@ export default function App() {
     let scrollTimeout: ReturnType<typeof setTimeout>;
 
     const handleWheel = (e: WheelEvent) => {
+      // Si el evento ocurre dentro de un elemento con scroll propio (como el modal o listas largas internas),
+      // permitimos que el navegador maneje el scroll nativo de ese elemento y no cambiamos de sección.
+      let target = e.target as HTMLElement | null;
+      while (target && target !== container && target !== document.body) {
+        const style = window.getComputedStyle(target);
+        const hasScrollStyleY = (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll');
+        const hasScrollStyleX = (style.overflowX === 'auto' || style.overflowX === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll');
+        
+        const isScrollableY = hasScrollStyleY && target.scrollHeight > target.clientHeight;
+        const isScrollableX = hasScrollStyleX && target.scrollWidth > target.clientWidth;
+        
+        if (isScrollableY || isScrollableX) {
+          // Si el elemento realmente tiene scroll activo, dejamos que ocurra de forma nativa
+          return;
+        }
+        target = target.parentElement;
+      }
+
       // Tomamos el movimiento dominante, sea rueda del ratón (Y) o trackpad horizontal (X)
       const primaryDelta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
       
@@ -391,7 +412,7 @@ export default function App() {
       <MouseGlow />
 
       {/* Main Snap Scroll Container (Horizontal with Parallax) */}
-      <main ref={scrollContainerRef} className="relative z-10 flex h-full w-full overflow-x-scroll overflow-y-hidden snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <main ref={scrollContainerRef} className="relative z-10 flex h-full w-full overflow-x-scroll overflow-y-hidden snap-x snap-mandatory scroll-smooth no-scrollbar">
         
         {/* 1. HERO SECTION */}
         <ParallaxSection id="hero" containerRef={scrollContainerRef} offset={80}>
@@ -409,21 +430,29 @@ export default function App() {
 
               {/* Typography Content */}
               <div className="flex-1 flex flex-col justify-start max-w-2xl w-full relative z-20 pt-20 md:pt-0">
-                <motion.h1 variants={itemVariants} className="text-[clamp(45px,7vw,110px)] font-sans font-black tracking-[-2px] md:tracking-[-4px] leading-[0.9] text-white mb-5 break-words">
+                <motion.h1 variants={itemVariants} className="text-[clamp(30px,8.5vw,110px)] font-sans font-black tracking-[-2px] md:tracking-[-4px] leading-[0.9] text-white mb-5 break-words">
                   <div 
-                    className="relative cursor-default w-fit group/name"
+                    className="relative cursor-default w-fit max-w-full overflow-hidden select-none"
                     onMouseEnter={() => setHoverTitle(true)}
                     onMouseLeave={() => setHoverTitle(false)}
                   >
-                    <span className={`block transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-0 blur-xl -translate-y-6 scale-95' : 'opacity-100 blur-0 translate-y-0 scale-100'}`}>
+                    {/* Invisible layout placeholder which determines parent dimension based on longest string */}
+                    <span className="block opacity-0 pointer-events-none select-none whitespace-nowrap">
+                      JUAN MONTILLA
+                    </span>
+                    
+                    {/* Default state: JUANCODEV */}
+                    <span className={`absolute inset-y-0 left-0 flex items-center transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-0 blur-xl -translate-y-6 scale-95 pointer-events-none' : 'opacity-100 blur-0 translate-y-0 scale-100'}`}>
                       JUANCODEV
                     </span>
-                    <span className={`absolute top-0 left-0 block transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-100 blur-0 translate-y-0 scale-100' : 'opacity-0 blur-xl translate-y-6 scale-95'}`}>
+
+                    {/* Hover state: JUAN MONTILLA */}
+                    <span className={`absolute inset-y-0 left-0 flex items-center transition-all duration-500 ease-out whitespace-nowrap ${hoverTitle ? 'opacity-100 blur-0 translate-y-0 scale-100' : 'opacity-0 blur-xl translate-y-6 scale-95 pointer-events-none'}`}>
                       JUAN MONTILLA
                     </span>
                   </div>
-                  <span className="block outline-text text-[clamp(40px,6vw,90px)] mt-1">DEVELOPER</span>
-                  <span className="block text-[clamp(35px,5vw,70px)] tracking-[-1px] md:tracking-[-2px] text-accent-cyan lg:whitespace-nowrap">FULLSTACK</span>
+                  <span className="block outline-text text-[clamp(28px,7vw,90px)] mt-1">DEVELOPER</span>
+                  <span className="block text-[clamp(26px,6vw,70px)] tracking-[-1px] md:tracking-[-2px] text-accent-cyan lg:whitespace-nowrap">FULLSTACK</span>
                 </motion.h1>
                 
                 <motion.p variants={itemVariants} className="text-[16px] md:text-[18px] leading-[1.6] text-text-dim mt-2 border-l-2 border-accent-cyan pl-5 mb-8 max-w-[450px]">
@@ -479,35 +508,34 @@ export default function App() {
               initial={{ opacity: 0, x: 50 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: false }}
-              className="mb-10 text-center md:text-left"
+              className="mb-6 md:mb-10 text-center md:text-left"
             >
-              <h2 className="text-[30px] md:text-[50px] font-sans font-black tracking-tight text-white mb-2">{t.skills.title1}<span className="text-accent-purple">{t.skills.title2}</span></h2>
+              <h2 className="text-[28px] md:text-[50px] font-sans font-black tracking-tight text-white mb-2">{t.skills.title1}<span className="text-accent-purple">{t.skills.title2}</span></h2>
             </motion.div>
-
-            <div className="grid grid-cols-1 md:grid-cols-10 gap-[20px]">
+            <div className="grid grid-cols-1 md:grid-cols-10 gap-4 md:gap-[20px]">
               {/* Quick Stats */}
               <motion.div 
                 initial={{ opacity: 0, x: -50 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: false }}
                 transition={{ type: 'spring', stiffness: 80, damping: 20 }}
-                className="md:col-span-4 flex flex-col gap-[20px]"
+                className="md:col-span-4 flex flex-col gap-4 md:gap-[20px]"
               >
-                <div className="bento-card flex flex-row md:flex-col justify-center items-center text-center gap-6 md:gap-0 h-full">
-                  <div className="w-16 h-16 rounded-full bg-accent-cyan/20 flex items-center justify-center md:mb-4 text-accent-cyan">
-                    <Code2 className="w-8 h-8" />
+                <div className="bento-card p-4 md:p-6 flex flex-row md:flex-col justify-center items-center text-center gap-6 md:gap-0 h-full">
+                  <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-accent-cyan/20 flex items-center justify-center md:mb-4 text-accent-cyan shrink-0">
+                    <Code2 className="w-6 h-6 md:w-8 md:h-8" />
                   </div>
-                  <div>
-                    <h3 className="font-sans text-[40px] font-bold text-text-main">5+</h3>
-                    <p className="text-text-dim font-mono text-[10px] tracking-[2px] uppercase mt-1">{t.skills.years}</p>
+                  <div className="text-left md:text-center">
+                    <h3 className="font-sans text-[32px] md:text-[40px] font-bold text-text-main leading-none">5+</h3>
+                    <p className="text-text-dim font-mono text-[9px] md:text-[10px] tracking-[2px] uppercase mt-1">{t.skills.years}</p>
                   </div>
                 </div>
                 
-                <div className="bento-card bg-gradient-to-br from-glass to-bg-dark border-glass-border relative overflow-hidden group">
+                <div className="bento-card p-4 md:p-6 bg-gradient-to-br from-glass to-bg-dark border-glass-border relative overflow-hidden group">
                   <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/setup/800/600')] opacity-5 group-hover:opacity-10 transition-opacity mix-blend-overlay object-cover" />
-                  <Terminal className="w-6 h-6 text-accent-purple mb-4" />
-                  <h3 className="font-sans text-[18px] font-semibold text-text-main mb-2">{t.skills.stackTitle}</h3>
-                  <p className="text-text-dim text-[13px]">{t.skills.stackDesc}</p>
+                  <Terminal className="w-5 h-5 md:w-6 md:h-6 text-accent-purple mb-3 md:mb-4" />
+                  <h3 className="font-sans text-[16px] md:text-[18px] font-semibold text-text-main mb-1 md:mb-2">{t.skills.stackTitle}</h3>
+                  <p className="text-text-dim text-[12px] md:text-[13px] leading-relaxed">{t.skills.stackDesc}</p>
                 </div>
               </motion.div>
 
@@ -524,11 +552,11 @@ export default function App() {
                      transition: { type: 'spring', stiffness: 80, damping: 20, staggerChildren: 0.08, delayChildren: 0.1 }
                    }
                  }}
-                 className="md:col-span-6 bento-card flex flex-col justify-center py-10"
+                 className="md:col-span-6 bento-card p-4 md:p-6 lg:p-8 flex flex-col justify-center py-6 md:py-10"
               >
-                <span className="text-[10px] uppercase tracking-[2px] text-accent-cyan mb-[12px] block">{t.skills.specialtySubtitle}</span>
-                <h3 className="text-[22px] font-sans font-semibold text-white mb-6">{t.skills.specialtyTitle}</h3>
-                 <div className="flex flex-wrap gap-[8px]">
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[2px] text-accent-cyan mb-2 md:mb-[12px] block">{t.skills.specialtySubtitle}</span>
+                <h3 className="text-[18px] md:text-[22px] font-sans font-semibold text-white mb-4 md:mb-6">{t.skills.specialtyTitle}</h3>
+                 <div className="flex flex-wrap gap-1.5 md:gap-[8px]">
                   {skillsArray.map((skill, idx) => (
                     <motion.div 
                       key={idx}
@@ -536,8 +564,8 @@ export default function App() {
                         hidden: { opacity: 0, y: 15, scale: 0.9 },
                         visible: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 120, damping: 12 } }
                       }}
-                      whileHover={{ scale: 1.1, y: -2, backgroundColor: "rgba(139, 92, 246, 0.1)", borderColor: "rgba(139, 92, 246, 0.5)" }}
-                      className="px-[14px] py-[8px] border border-glass-border bg-glass rounded-[8px] text-[13px] font-medium text-text-main inline-block transition-colors"
+                      whileHover={{ scale: 1.05, y: -2, backgroundColor: "rgba(139, 92, 246, 0.1)", borderColor: "rgba(139, 92, 246, 0.5)" }}
+                      className="px-3 md:px-[14px] py-1.5 md:py-[8px] border border-glass-border bg-glass rounded-[8px] text-[12px] md:text-[13px] font-medium text-text-main inline-block transition-colors"
                     >
                       {skill}
                     </motion.div>
