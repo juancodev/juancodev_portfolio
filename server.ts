@@ -37,9 +37,21 @@ class ContactController {
 class AuthController {
   @Post('register')
   async register(@Body() body: any) {
-    const { email, password } = body;
+    const { email, password, bypassSecret } = body;
     if (!email || !password) {
       throw new HttpException('Email y contraseña requeridos.', HttpStatus.BAD_REQUEST);
+    }
+
+    // Protect production from unwanted user registrations
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd) {
+      const allowedSecret = process.env.JWT_SECRET || 'super-secret-key-juancodev-123!56';
+      if (bypassSecret !== allowedSecret) {
+        throw new HttpException(
+          'El registro público está deshabilitado en Producción. Por favor, realiza el registro en tu entorno de desarrollo o pasa el "bypassSecret" correcto.',
+          HttpStatus.FORBIDDEN
+        );
+      }
     }
 
     const existingUser = await dbService.getUserByEmail(email);
@@ -98,6 +110,41 @@ class AuthController {
     return {
       success: true,
       user: { id: user._id, email: user.email }
+    };
+  }
+
+  @Post('reset-forgotten')
+  async resetPassword(@Body() body: any) {
+    const { email, newPassword, adminSecretKey } = body;
+    if (!email || !newPassword || !adminSecretKey) {
+      throw new HttpException(
+        'Faltan campos requeridos en el cuerpo (email, newPassword, adminSecretKey).',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    const systemSecret = process.env.JWT_SECRET || 'super-secret-key-juancodev-123!56';
+    if (adminSecretKey !== systemSecret) {
+      throw new HttpException(
+        'Clave de administración autorizada incorrecta ("adminSecretKey").',
+        HttpStatus.UNAUTHORIZED
+      );
+    }
+
+    const user = await dbService.getUserByEmail(email);
+    if (!user) {
+      throw new HttpException('No se encontró ningún administrador con ese correo.', HttpStatus.NOT_FOUND);
+    }
+
+    const newHash = await AuthService.hashPassword(newPassword);
+    const updated = await dbService.updateUserPassword(email, newHash);
+    if (!updated) {
+      throw new HttpException('Ocurrió un error al actualizar la base de datos.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    return {
+      success: true,
+      message: '¡La contraseña de tu cuenta de administrador se ha restablecido exitosamente!'
     };
   }
 }

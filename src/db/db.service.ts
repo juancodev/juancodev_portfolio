@@ -40,15 +40,24 @@ export class DBService {
     }
 
     try {
-      this.client = new MongoClient(uri);
+      this.client = new MongoClient(uri, {
+        connectTimeoutMS: 5000,
+        socketTimeoutMS: 5000,
+        serverSelectionTimeoutMS: 5000
+      });
       await this.client.connect();
       // Extract db name from URI or use default 'juancodev_portfolio'
       const dbName = uri.split('/').pop()?.split('?')[0] || 'juancodev_portfolio';
       this.db = this.client.db(dbName);
       this.isLocalFallback = false;
       console.log(`✅ Fully connected to MongoDB database: "${dbName}"`);
-    } catch (err) {
-      console.error('❌ Failed to connect to MongoDB, falling back to local JSON database: ', err);
+    } catch (err: any) {
+      console.error('❌ Failed to connect to MongoDB, falling back to local JSON database: ', err.message || err);
+      // Log custom developer hints for MongoDB Atlas TLS alert 80 errors:
+      if (err.message && (err.message.includes('SSL') || err.message.includes('tlsv1 alert') || err.message.includes('ServerSelectionError'))) {
+        console.warn('💡 HINT: El error SSL/TLSV1 (alert number 80) ocurre casi siempre cuando tu IP no está autorizada en la sección "Network Access" de MongoDB Atlas.');
+        console.warn('Para solucionarlo: Ve a tu panel de MongoDB Atlas -> Security -> Network Access -> Add IP Address -> Haz clic en "Allow Access From Anywhere" (0.0.0.0/0).');
+      }
       this.useLocalFallback();
     }
   }
@@ -279,6 +288,29 @@ export class DBService {
         this.writeLocal(data);
       }
       return newUser;
+    }
+  }
+
+  async updateUserPassword(email: string, passwordHash: string): Promise<boolean> {
+    const cleanEmail = email.toLowerCase().trim();
+    if (this.isLocalFallback || !this.db) {
+      const data = this.readLocal();
+      const index = data.users.findIndex(u => u.email === cleanEmail);
+      if (index === -1) return false;
+      data.users[index].passwordHash = passwordHash;
+      this.writeLocal(data);
+      return true;
+    }
+
+    try {
+      const result = await this.db.collection('users').updateOne(
+        { email: cleanEmail },
+        { $set: { passwordHash } }
+      );
+      return result.modifiedCount > 0 || result.matchedCount > 0;
+    } catch (err) {
+      console.error('Error updating password in MongoDB:', err);
+      return false;
     }
   }
 

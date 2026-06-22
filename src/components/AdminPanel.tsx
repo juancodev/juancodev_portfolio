@@ -27,6 +27,24 @@ export default function AdminPanel({ projects, dbStatus, onAdd, onUpdate, onDele
   const [isOpen, setIsOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [showTrigger, setShowTrigger] = useState(false);
+
+  useEffect(() => {
+    const isDev = (import.meta as any).env?.DEV || 
+                  window.location.hostname === 'localhost' || 
+                  window.location.hostname === '127.0.0.1';
+    
+    const params = new URLSearchParams(window.location.search);
+    const hasAdminParam = params.get('admin') === 'true';
+    const wasActivated = localStorage.getItem('juancodev_admin_active') === 'true';
+
+    if (isDev || hasAdminParam || wasActivated) {
+      setShowTrigger(true);
+      if (hasAdminParam) {
+        localStorage.setItem('juancodev_admin_active', 'true');
+      }
+    }
+  }, []);
   
   // Auth Form State
   const [email, setEmail] = useState('');
@@ -212,15 +230,17 @@ export default function AdminPanel({ projects, dbStatus, onAdd, onUpdate, onDele
   return (
     <>
       {/* Sleek Floating Admin Access Trigger */}
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="text-text-dim/40 hover:text-accent-cyan hover:scale-110 active:scale-95 transition-all duration-300 p-2 rounded-full hover:bg-glass flex items-center gap-1.5 text-xs font-mono select-none"
-        title="Panel de Administración"
-        id="admin-panel-trigger"
-      >
-        <Lock className="w-3.5 h-3.5" />
-        <span className="opacity-0 hover:opacity-100 md:group-hover:opacity-100 transition-opacity whitespace-nowrap">Admin</span>
-      </button>
+      {showTrigger && (
+        <button 
+          onClick={() => setIsOpen(true)}
+          className="text-text-dim/40 hover:text-accent-cyan hover:scale-110 active:scale-95 transition-all duration-300 p-2 rounded-full hover:bg-glass flex items-center gap-1.5 text-xs font-mono select-none"
+          title="Panel de Administración"
+          id="admin-panel-trigger"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="opacity-0 hover:opacity-100 md:group-hover:opacity-100 transition-opacity whitespace-nowrap">Admin</span>
+        </button>
+      )}
 
       {/* Admin Panel Modal Overlay */}
       <AnimatePresence>
@@ -262,14 +282,23 @@ export default function AdminPanel({ projects, dbStatus, onAdd, onUpdate, onDele
 
               {/* Db Status banner - Sencillo para trabajar local */}
               {dbStatus && (
-                <div className={`px-5 py-2.5 text-xs font-mono flex items-center gap-2 border-b border-glass-border ${
-                  dbStatus.isFallback ? 'bg-amber-950/20 text-amber-200 border-amber-950/40' : 'bg-emerald-950/20 text-emerald-300 border-emerald-950/40'
-                }`}>
-                  <Database className="w-3.5 h-3.5 shrink-0" />
-                  <span className="font-semibold">{dbStatus.isFallback ? 'Modo Local:' : 'Modo Cloud:'}</span>
-                  <span>{dbStatus.type}</span>
+                <div className="border-b border-glass-border">
+                  <div className={`px-5 py-2.5 text-xs font-mono flex items-center justify-between gap-2 ${
+                    dbStatus.isFallback ? 'bg-amber-950/20 text-amber-200' : 'bg-emerald-950/20 text-emerald-300'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <Database className="w-3.5 h-3.5 shrink-0" />
+                      <span className="font-semibold">{dbStatus.isFallback ? 'Modo Local:' : 'Modo Cloud:'}</span>
+                      <span>{dbStatus.type}</span>
+                    </div>
+                    {dbStatus.isFallback && (
+                      <span className="hidden md:inline text-text-dim text-[10px]"> (Datos guardados de forma segura en: {dbStatus.location})</span>
+                    )}
+                  </div>
                   {dbStatus.isFallback && (
-                    <span className="hidden md:inline text-text-dim text-[10px]"> (Datos guardados de forma segura en: {dbStatus.location})</span>
+                    <div className="px-5 py-2.5 text-[11px] bg-amber-500/5 text-amber-300/90 leading-relaxed font-sans border-t border-glass-border">
+                      💡 <strong>Guía de Conexión:</strong> Si rellenaste tu <code>MONGODB_URI</code> pero continúas en Modo Local, es debido al control de seguridad de MongoDB Atlas. Las instancias de vista previa de AI Studio tienen IPs dinámicas de salida. Asegúrate de añadir la regla <code>0.0.0.0/0</code> en la sección <strong>Network Access</strong> en tu panel de MongoDB Atlas para autorizar la conexión. ¡Tu portafolio funcionará perfectamente de ambas formas!
+                    </div>
                   )}
                 </div>
               )}
@@ -315,8 +344,20 @@ export default function AdminPanel({ projects, dbStatus, onAdd, onUpdate, onDele
                       </div>
 
                       {authError && (
-                        <div className="p-3 bg-red-950/40 border border-red-500/20 text-red-200 text-xs rounded-lg">
-                          {authError}
+                        <div className="p-3 bg-red-950/40 border border-red-500/20 text-red-200 text-xs rounded-lg space-y-1.5">
+                          <p>{authError}</p>
+                          {authError.toLowerCase().includes('registrado') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsRegistering(false);
+                                setAuthError('');
+                              }}
+                              className="text-xs text-accent-cyan font-semibold hover:underline block text-left"
+                            >
+                              👉 Haz clic aquí para cambiar al formulario de "Iniciar Sesión"
+                            </button>
+                          )}
                         </div>
                       )}
 
